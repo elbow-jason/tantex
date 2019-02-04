@@ -19,3 +19,11 @@ end
 
 ## Examples
 [This](https://github.com/hansihe/NifIo) is a complete example of a NIF written in Rust.
+
+
+## TODOs
+
+  + add lookup by term
+  + add delete document by term
+  + add update document by term
+  + add insert document by unique term
