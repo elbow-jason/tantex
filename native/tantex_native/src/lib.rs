@@ -11,9 +11,9 @@ use rustler::resource::ResourceArc;
 use rustler::{Encoder, Env, NifResult, Term};
 
 use tantivy::collector::TopDocs;
-use tantivy::query::QueryParser;
-use tantivy::schema::{Field, Schema, SchemaBuilder};
-use tantivy::{Index, IndexWriter};
+use tantivy::query::{Query, QueryParser, TermQuery};
+use tantivy::schema::{Field, IndexRecordOption, Schema, SchemaBuilder};
+use tantivy::{DocAddress, Document, Index, IndexWriter};
 
 use std::sync::RwLock;
 
@@ -27,7 +27,7 @@ use schema::field_config::FieldConfig;
 use schema::index::{index_into_writer, open_or_create_index};
 
 use tantex_error::TantexError;
-use utils::{fetch_schema_fields, parse_query};
+use utils::{fetch_field, fetch_schema_fields, parse_query};
 
 struct Wrapper<T> {
     lock: RwLock<T>,
@@ -55,6 +55,7 @@ rustler_export_nifs! {
         ("schema_into_index", 2, schema_into_index),
         ("write_documents", 4, write_documents),
         ("limit_search", 5, limit_search),
+        ("find_one_by_text", 4, find_one_by_text),
     ],
     Some(on_load)
 }
@@ -96,21 +97,13 @@ fn execute_search(
     limit: usize,
 ) -> Result<Vec<String>, TantexError> {
     let fields: Vec<Field> = fetch_schema_fields(&schema, field_strings)?;
-
     let query_parser = QueryParser::for_index(&index, fields);
     let query = parse_query(&query_parser, &pattern)?;
-    let collector = TopDocs::with_limit(limit);
-    let searcher = index.searcher();
-    let docs = match searcher.search(&query, &collector) {
-        Ok(found) => found,
-        Err(e1) => {
-            let e2 = TantexError::SearchExecutionFailed(pattern.to_string(), e1);
-            return Err(e2);
-        }
-    };
+    let docs = search_with_limit(index, &query, limit)?;
     let mut json_docs: Vec<String> = Vec::with_capacity(docs.len());
-    for (_score, doc_address) in docs {
-        match searcher.doc(doc_address) {
+    let searcher = index.searcher();
+    for (_score, doc_address) in docs.iter() {
+        match searcher.doc(*doc_address) {
             Ok(retrieved_doc) => json_docs.push(schema.to_json(&retrieved_doc)),
             Err(e1) => {
                 let e2 = TantexError::DocumentRetrievalFailed(e1);
@@ -148,6 +141,56 @@ fn write_documents<'a>(env: Env<'a>, args: &[Term<'a>]) -> NifResult<Term<'a>> {
     let index = index_wrapper.lock.read().unwrap();
     match write_docs_to_writer(&schema, &index, json_docs, heap_size_in_bytes) {
         Ok(last) => Ok((atoms::ok(), last).encode(env)),
+        Err(e) => Ok((atoms::error(), e.to_reason()).encode(env)),
+    }
+}
+
+fn execute_find_one_by_text(
+    schema: &Schema,
+    index: &Index,
+    field_name: &str,
+    text: &str,
+) -> Result<Document, TantexError> {
+    let field = fetch_field(&schema, &field_name)?;
+    let term = tantivy::schema::Term::from_field_text(field, &text);
+    let searcher = index.searcher();
+    let term_query = TermQuery::new(term, IndexRecordOption::Basic);
+    let found = search_with_limit(index, &term_query, 1)?;
+    if let Some((_score, doc_address)) = found.first() {
+        match searcher.doc(*doc_address) {
+            Ok(doc) => Ok(doc),
+            Err(e) => Err(TantexError::DocumentRetrievalFailed(e)),
+        }
+    } else {
+        Err(TantexError::DocumentNotFound)
+    }
+}
+
+fn search_with_limit(
+    index: &Index,
+    query: &Query,
+    limit: usize,
+) -> Result<Vec<(f32, DocAddress)>, TantexError> {
+    let collector = TopDocs::with_limit(limit);
+    let searcher = index.searcher();
+    match searcher.search(query, &collector) {
+        Ok(found) => Ok(found),
+        Err(e1) => {
+            let e2 = TantexError::SearchExecutionFailed(query.box_clone(), e1);
+            Err(e2)
+        }
+    }
+}
+
+fn find_one_by_text<'a>(env: Env<'a>, args: &[Term<'a>]) -> NifResult<Term<'a>> {
+    let schema_wrapper: ResourceArc<Wrapper<Schema>> = args[0].decode()?;
+    let index_wrapper: ResourceArc<Wrapper<Index>> = args[1].decode()?;
+    let field_name: String = args[2].decode()?;
+    let text: String = args[3].decode()?;
+    let schema = schema_wrapper.lock.read().unwrap();
+    let index = index_wrapper.lock.read().unwrap();
+    match execute_find_one_by_text(&schema, &index, &field_name, &text) {
+        Ok(doc) => Ok((atoms::ok(), schema.to_json(&doc)).encode(env)),
         Err(e) => Ok((atoms::error(), e.to_reason()).encode(env)),
     }
 }

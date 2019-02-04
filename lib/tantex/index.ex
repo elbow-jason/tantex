@@ -17,12 +17,7 @@ defmodule Tantex.Index do
         search_terms,
         limit \\ 10
       ) do
-    fields =
-      Enum.map(fields, fn
-        x when is_binary(x) -> x
-        x when is_atom(x) -> to_string(x)
-        %Field{name: name} -> to_string(name)
-      end)
+    fields = Enum.map(fields, &string_field/1)
 
     case Native.limit_search(schema_ref, index_ref, fields, search_terms, limit) do
       {:ok, json_list} ->
@@ -33,4 +28,23 @@ defmodule Tantex.Index do
         err
     end
   end
+
+  def find_one_by_term(
+        %Index{index_ref: index_ref, schema_ref: schema_ref},
+        field,
+        text_term
+      )
+      when is_binary(text_term) do
+    case Native.find_one_by_text(schema_ref, index_ref, string_field(field), text_term) do
+      {:ok, json_doc} ->
+        {:ok, Encoder.get_encoder().decode_map(json_doc)}
+
+      err ->
+        err
+    end
+  end
+
+  defp string_field(x) when is_binary(x), do: x
+  defp string_field(x) when is_atom(x), do: to_string(x)
+  defp string_field(%Field{name: name}), do: to_string(name)
 end

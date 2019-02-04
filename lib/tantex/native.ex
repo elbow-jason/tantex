@@ -32,5 +32,7 @@ defmodule Tantex.Native do
 
   def limit_search(_schema_ref, _index_ref, _fields, _search_terms, _limit), do: err()
 
+  def find_one_by_text(_schema_ref, _index_ref, _field_name, _text), do: err()
+
   defp err(), do: :erlang.nif_error(:nif_not_loaded)
 end

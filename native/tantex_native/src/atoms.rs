@@ -22,6 +22,7 @@ rustler_atoms! {
     atom invalid_document_json;
     atom search_execution_failed;
     atom document_retrieval_failed;
+    atom document_not_found;
     // atom __true__ = "true";
     // atom __false__ = "false";
 }

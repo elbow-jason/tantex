@@ -1,6 +1,6 @@
 use super::atoms;
-// use erl_term::Term;
 use rustler::types::atom::Atom;
+use tantivy::query::Query;
 use tantivy::schema::DocParsingError;
 use tantivy::TantivyError;
 
@@ -15,8 +15,9 @@ pub enum TantexError {
     FailedToWriteToIndex(String),
     FailedToLoadSearchers(String),
     FieldNotFound(String),
+    DocumentNotFound,
     InvalidQuery(String),
-    SearchExecutionFailed(String, TantivyError),
+    SearchExecutionFailed(Box<Query>, TantivyError),
     DocumentRetrievalFailed(TantivyError),
     InvalidDocumentJSON(String, DocParsingError),
 }
@@ -48,8 +49,8 @@ impl TantexError {
                 (atoms::failed_to_load_searchers(), message.to_string())
             }
             InvalidQuery(query) => (atoms::invalid_query_format(), query.to_string()),
-            SearchExecutionFailed(pattern, tantivy_error) => {
-                let message = format!("query: {:?} - error: {:?}", pattern, tantivy_error);
+            SearchExecutionFailed(query, tantivy_error) => {
+                let message = format!("query: {:?} - error: {:?}", query, tantivy_error);
                 (atoms::search_execution_failed(), message)
             }
             DocumentRetrievalFailed(tantivy_error) => {
@@ -60,6 +61,7 @@ impl TantexError {
                 let message = format!("json: {:?} - error: {:?}", json, tantivy_error);
                 (atoms::invalid_document_json(), message)
             }
+            DocumentNotFound => (atoms::document_not_found(), "".to_string()),
         }
     }
 }
