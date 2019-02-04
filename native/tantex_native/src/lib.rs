@@ -12,10 +12,7 @@ use rustler::{Encoder, Env, NifResult, Term};
 
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
-use tantivy::schema::{
-    Field, IntOptions, Schema, SchemaBuilder, TextOptions, FAST, INT_INDEXED, INT_STORED, STORED,
-    STRING, TEXT,
-};
+use tantivy::schema::{Field, Schema, SchemaBuilder};
 use tantivy::{Index, IndexWriter};
 
 use std::sync::RwLock;
@@ -215,51 +212,34 @@ fn add_field_config_to_schema_builder(
     name: &str,
     field_config: FieldConfig,
 ) {
+    use schema::field_config::*;
+    use FieldConfig::*;
     match field_config {
-        FieldConfig::U64 { stored, fast } => {
+        U64 { stored, fast } => {
             let int_options = build_int_options(stored, fast);
             schema_builder.add_u64_field(name, int_options);
         }
-        FieldConfig::I64 { stored, fast } => {
+        I64 { stored, fast } => {
             let int_options = build_int_options(stored, fast);
             schema_builder.add_i64_field(name, int_options);
         }
-        FieldConfig::Str { stored } => {
+        Str { stored } => {
             let string_options = build_string_options(stored);
             schema_builder.add_text_field(name, string_options);
         }
-        FieldConfig::Text { stored } => {
+        Text { stored } => {
             let text_options = build_text_options(stored);
             schema_builder.add_text_field(name, text_options);
         }
-        FieldConfig::Facet => {
+        Trigram { stored } => {
+            let text_options = build_trigram_options(stored);
+            schema_builder.add_text_field(name, text_options);
+        }
+        Facet => {
             schema_builder.add_facet_field(name);
         }
-        FieldConfig::Bytes => {
+        Bytes => {
             schema_builder.add_bytes_field(name);
         }
-    }
-}
-
-fn build_int_options(stored: bool, fast: bool) -> IntOptions {
-    let mut opts = INT_INDEXED;
-    opts = if stored { opts | INT_STORED } else { opts };
-    opts = if fast { opts | FAST } else { opts };
-    opts
-}
-
-fn build_text_options(stored: bool) -> TextOptions {
-    if stored {
-        TEXT | STORED
-    } else {
-        TEXT
-    }
-}
-
-fn build_string_options(stored: bool) -> TextOptions {
-    if stored {
-        STRING | STORED
-    } else {
-        STRING
     }
 }
