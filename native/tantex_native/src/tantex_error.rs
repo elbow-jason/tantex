@@ -1,6 +1,7 @@
 use super::atoms;
-use erl_term::Term;
+// use erl_term::Term;
 use rustler::types::atom::Atom;
+use tantivy::schema::DocParsingError;
 use tantivy::TantivyError;
 
 pub enum TantexError {
@@ -13,18 +14,18 @@ pub enum TantexError {
     FailedToCreateIndexWriter(TantivyError),
     FailedToWriteToIndex(String),
     FailedToLoadSearchers(String),
-    TermCannotBeString(Term),
-    InvalidUTF8(Vec<u8>),
-    Exceeded8Bytes(Vec<u8>),
+    // TermCannotBeString(Term),
+    // InvalidUTF8(Vec<u8>),
+    // Exceeded8Bytes(Vec<u8>),
     FieldNotFound(String),
-    TermCannotBeI64(Term),
-    TermCannotBeU64(Term),
-    UnhandledDocActionCombo(String), // IndexInitFailed
-    DocumentMustBeMap(Term),
-    InvalidTermFormat(String),
+    // TermCannotBeI64(Term),
+    // TermCannotBeU64(Term),
+    // UnhandledDocActionCombo(String), // IndexInitFailed
+    // InvalidTermFormat(String),
     InvalidQuery(String),
     SearchExecutionFailed(String, TantivyError),
     DocumentRetrievalFailed(TantivyError),
+    InvalidDocumentJSON(String, DocParsingError),
 }
 
 use TantexError::*;
@@ -41,28 +42,7 @@ impl TantexError {
                 let message = format!("path: {:?}", path);
                 (atoms::failed_to_write_to_index(), message)
             }
-            InvalidUTF8(bytes) => {
-                let message = format!("invalid bytes: {:?}", bytes);
-                (atoms::invalid_utf8(), message)
-            }
-            Exceeded8Bytes(bytes) => {
-                let message = format!("u8 slice was more than 8 bytes long: {:?}", bytes);
-                (atoms::exceeded_8_bytes(), message)
-            }
             FieldNotFound(field_name) => (atoms::field_not_found(), field_name.to_string()),
-            TermCannotBeI64(term) => {
-                let message = format!("erl_term cannot be i64 - {:?}", term);
-                (atoms::term_cannot_be_i64(), message)
-            }
-            TermCannotBeU64(term) => {
-                let message = format!("erl_term cannot be u64 - {:?}", term);
-                (atoms::term_cannot_be_u64(), message)
-            }
-            TermCannotBeString(term) => {
-                let message = format!("erl_term cannot be string - {:?}", term);
-                (atoms::term_cannot_be_string(), message)
-            }
-            UnhandledDocActionCombo(message) => (atoms::doc_action_error(), message.to_string()),
             FailedToCreateIndex(path, e) => {
                 let message = format!("path: {:?} - reason: {:?}", path, e);
                 (atoms::failed_to_create_index(), message)
@@ -71,18 +51,11 @@ impl TantexError {
                 let message = format!("reason: {:?}", tantivy_error);
                 (atoms::failed_to_create_index_writer(), message)
             }
-            DocumentMustBeMap(term) => {
-                let message = format!("wrong term: {:?}", term);
-                (atoms::document_must_be_map(), message)
-            }
             FailedToLoadSearchers(message) => {
                 (atoms::failed_to_load_searchers(), message.to_string())
             }
-            InvalidTermFormat(message) => {
-                (atoms::invalid_term_format(), message.to_string())
-            }
             InvalidQuery(query) => {
-                (atoms::invalid_term_format(), query.to_string())
+                (atoms::invalid_query_format(), query.to_string())
             }
             SearchExecutionFailed(pattern, tantivy_error) => {
                 let message = format!("query: {:?} - error: {:?}", pattern, tantivy_error);
@@ -91,6 +64,10 @@ impl TantexError {
             DocumentRetrievalFailed(tantivy_error) => {
                 let message = format!("error: {:?}", tantivy_error);
                 (atoms::document_retrieval_failed(), message)
+            }
+            InvalidDocumentJSON(json, tantivy_error) => {
+                let message = format!("json: {:?} - error: {:?}", json, tantivy_error);
+                (atoms::invalid_document_json(), message)
             }
             // IndexInitFailed => (atoms::index_init_failed(), "".to_string()),
         }

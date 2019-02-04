@@ -1,12 +1,13 @@
 defmodule Tantex.Index do
-  alias Tantex.{Encoding, Native, Index, Field}
+  alias Tantex.{Encoder, Native, Index, Field}
 
   defstruct [:index_ref, :schema_ref, :fields]
 
   def write_documents(%Index{index_ref: index_ref, schema_ref: schema_ref}, docs, opts \\ [])
       when is_list(docs) do
     heap_size = Keyword.get(opts, :heap_size, 50_000_000)
-    list_of_docs = Enum.map(docs, &Encoding.encode_term/1)
+    encoder = Encoder.get_encoder()
+    list_of_docs = Enum.map(docs, fn doc -> encoder.encode_map(doc) end)
     Native.write_documents(schema_ref, index_ref, list_of_docs, heap_size)
   end
 
@@ -24,8 +25,9 @@ defmodule Tantex.Index do
       end)
 
     case Native.limit_search(schema_ref, index_ref, fields, search_terms, limit) do
-      {:ok, json} ->
-        {:ok, Enum.map(json, &Jason.decode!/1)}
+      {:ok, json_list} ->
+        encoder = Encoder.get_encoder()
+        {:ok, Enum.map(json_list, fn item -> encoder.decode_map(item) end)}
 
       err ->
         err

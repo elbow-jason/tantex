@@ -28,7 +28,7 @@ defmodule Tantex.Native do
 
   def schema_into_index(_schema_ref, _path), do: err()
 
-  def write_documents(_schema_ref, _index_ref, _list_of_docs, _heap_size), do: err()
+  def write_documents(_schema_ref, _index_ref, _encoded_docs, _heap_size), do: err()
 
   def limit_search(_schema_ref, _index_ref, _fields, _search_terms, _limit), do: err()
 

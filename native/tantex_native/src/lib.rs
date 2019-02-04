@@ -3,22 +3,20 @@
 extern crate rustler;
 #[macro_use]
 extern crate lazy_static;
-extern crate erl_term;
+
 extern crate rustler_codegen;
 extern crate tantivy;
 
 use rustler::resource::ResourceArc;
-// use rustler::types::atom::Atom;
 use rustler::{Encoder, Env, NifResult, Term};
 
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::{
-    Document, Field, IntOptions, Schema, SchemaBuilder, TextOptions, FAST, INT_INDEXED, INT_STORED,
-    STORED, STRING, TEXT,
+    Field, IntOptions, Schema, SchemaBuilder, TextOptions, FAST, INT_INDEXED, INT_STORED, STORED,
+    STRING, TEXT,
 };
 use tantivy::{Index, IndexWriter};
-// use tantivy::query::
 
 use std::sync::RwLock;
 
@@ -28,12 +26,11 @@ mod schema;
 mod tantex_error;
 mod utils;
 
-use schema::doc_action::DocAction;
 use schema::field_config::FieldConfig;
 use schema::index::{index_into_writer, open_or_create_index};
 
 use tantex_error::TantexError;
-use utils::{bytes_to_document_map, fetch_schema_fields, parse_query};
+use utils::{fetch_schema_fields, parse_query};
 
 struct Wrapper<T> {
     lock: RwLock<T>,
@@ -148,23 +145,11 @@ fn schema_into_index<'a>(env: Env<'a>, args: &[Term<'a>]) -> NifResult<Term<'a>>
 fn write_documents<'a>(env: Env<'a>, args: &[Term<'a>]) -> NifResult<Term<'a>> {
     let schema_wrapper: ResourceArc<Wrapper<Schema>> = args[0].decode()?;
     let index_wrapper: ResourceArc<Wrapper<Index>> = args[1].decode()?;
-    let raw_docs: Vec<Vec<u8>> = args[2].decode()?;
+    let json_docs: Vec<String> = args[2].decode()?;
     let heap_size_in_bytes: usize = args[3].decode()?;
-
-    let mut doc_maps: Vec<erl_term::Term> = Vec::with_capacity(raw_docs.len());
-    for doc_bytes in raw_docs.iter() {
-        match bytes_to_document_map(doc_bytes) {
-            Ok(map) => doc_maps.push(map),
-            Err(e) => {
-                let result = (atoms::error(), e.to_reason());
-                return Ok(result.encode(env));
-            }
-        }
-    }
-
     let schema = schema_wrapper.lock.read().unwrap();
     let index = index_wrapper.lock.read().unwrap();
-    match write_docs_to_writer(&schema, &index, doc_maps, heap_size_in_bytes) {
+    match write_docs_to_writer(&schema, &index, json_docs, heap_size_in_bytes) {
         Ok(last) => Ok((atoms::ok(), last).encode(env)),
         Err(e) => Ok((atoms::error(), e.to_reason()).encode(env)),
     }
@@ -173,44 +158,34 @@ fn write_documents<'a>(env: Env<'a>, args: &[Term<'a>]) -> NifResult<Term<'a>> {
 fn write_docs_to_writer(
     schema: &Schema,
     index: &Index,
-    maps: Vec<erl_term::Term>,
+    json_maps: Vec<String>,
     heap_size: usize,
 ) -> Result<u64, TantexError> {
     let mut index_writer = index_into_writer(index, heap_size)?;
-    for m in maps {
-        match m {
-            erl_term::Term::Map(fields) => {
-                let mut doc = Document::default();
-                for (k, v) in fields {
-                    let action = DocAction::build(schema, k, v)?;
-                    match action {
-                        DocAction::AddBytes(field, bytes) => doc.add_bytes(field, bytes),
-                        DocAction::AddText(field, text) => doc.add_text(field, &text),
-                        DocAction::AddI64(field, value) => doc.add_i64(field, value),
-                        DocAction::AddU64(field, value) => doc.add_u64(field, value),
-                    }
-                }
+    for doc_json in json_maps {
+        match schema.parse_document(&doc_json) {
+            Ok(doc) => {
                 let _ = index_writer.add_document(doc);
             }
-
-            got => {
-                let e = TantexError::DocumentMustBeMap(got);
-                return Err(e);
+            Err(e1) => {
+                let json_str = doc_json.to_string();
+                let e2 = TantexError::InvalidDocumentJSON(json_str, e1);
+                return Err(e2);
             }
         }
     }
     let last: u64 = match index_writer.commit() {
         Ok(last) => last,
-        Err(e) => {
-            let message = format!("index: {:?} - reason: {:?}", index, e);
-            let e = TantexError::FailedToWriteToIndex(message);
-            return Err(e);
+        Err(e1) => {
+            let message = format!("index: {:?} - reason: {:?}", index, e1);
+            let e2 = TantexError::FailedToWriteToIndex(message);
+            return Err(e2);
         }
     };
-    if let Err(e) = index.load_searchers() {
-        let message = format!("index: {:?} - reason: {:?}", index, e);
-        let e = TantexError::FailedToLoadSearchers(message);
-        return Err(e);
+    if let Err(e1) = index.load_searchers() {
+        let message = format!("index: {:?} - reason: {:?}", index, e1);
+        let e2 = TantexError::FailedToLoadSearchers(message);
+        return Err(e2);
     };
     Ok(last)
 }
