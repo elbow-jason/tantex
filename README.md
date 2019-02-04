@@ -1,6 +1,6 @@
 # Tantex
 
-**TODO: Add description**
+This is an experimental lib for interacting with [tantivy](https://github.com/tantivy-search/tantivy) from Elixir.
 
 ## Installation
 
