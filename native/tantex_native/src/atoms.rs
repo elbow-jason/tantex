@@ -1,0 +1,33 @@
+rustler_atoms! {
+    atom ok;
+    atom error;
+    atom string;
+    atom text;
+    atom stored;
+    atom fast;
+    atom int_indexed;
+    atom cannot_be_fast;
+    atom invalid_type;
+    atom cannot_be_stored;
+    atom name_cannot_be_blank;
+    atom index_already_exists;
+    atom path_does_not_exist;
+    atom failed_to_write_to_index;
+    atom failed_to_create_index;
+    atom failed_to_create_index_writer;
+    atom failed_to_load_searchers;
+    atom invalid_utf8;
+    atom exceeded_8_bytes;
+    atom field_not_found;
+    atom term_cannot_be_i64;
+    atom term_cannot_be_u64;
+    atom term_cannot_be_string;
+    atom doc_action_error;
+    atom document_must_be_map;
+    atom invalid_term_format;
+    atom invalid_query_format;
+    atom search_execution_failed;
+    atom document_retrieval_failed;
+    // atom __true__ = "true";
+    // atom __false__ = "false";
+}
