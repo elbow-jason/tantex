@@ -12,7 +12,6 @@ use rustler::{Encoder, Env, NifResult, Term};
 use tantivy::schema::{Field, Type};
 
 mod atoms;
-mod query;
 mod schema;
 mod tantex_error;
 mod utils;
