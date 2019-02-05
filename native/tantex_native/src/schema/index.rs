@@ -1,20 +1,10 @@
 use std::path::PathBuf;
 use tantivy::schema::Schema;
-use tantivy::{Index, IndexWriter, TantivyError};
+use tantivy::{Index, TantivyError};
 
 use super::super::tantex_error::TantexError;
 
-use TantexError::{FailedToCreateIndex, FailedToCreateIndexWriter, PathDoesNotExist};
-
-pub fn index_into_writer(index: &Index, heap_size: usize) -> Result<IndexWriter, TantexError> {
-    match index.writer(heap_size) {
-        Ok(writer) => Ok(writer),
-        Err(reason) => {
-            let e = FailedToCreateIndexWriter(reason);
-            Err(e)
-        }
-    }
-}
+use TantexError::{FailedToCreateIndex, PathDoesNotExist};
 
 pub fn open_or_create_index(path: &str, schema: Schema) -> Result<Index, TantexError> {
     let path_buf = PathBuf::from(path);

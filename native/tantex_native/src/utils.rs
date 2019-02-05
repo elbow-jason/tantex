@@ -1,5 +1,7 @@
+use tantivy::collector::TopDocs;
 use tantivy::query::{Query, QueryParser};
 use tantivy::schema::{Field, Schema};
+use tantivy::{DocAddress, Index};
 
 use super::tantex_error::TantexError;
 use TantexError::{FieldNotFound, InvalidQuery};
@@ -30,5 +32,21 @@ pub fn parse_query(query_parser: &QueryParser, pattern: &str) -> Result<Box<Quer
     match query_parser.parse_query(pattern) {
         Ok(q) => Ok(q),
         Err(_) => Err(InvalidQuery(pattern.to_string())),
+    }
+}
+
+pub fn search_with_limit(
+    index: &Index,
+    query: &Query,
+    limit: usize,
+) -> Result<Vec<(f32, DocAddress)>, TantexError> {
+    let collector = TopDocs::with_limit(limit);
+    let searcher = index.searcher();
+    match searcher.search(query, &collector) {
+        Ok(found) => Ok(found),
+        Err(e1) => {
+            let e2 = TantexError::SearchExecutionFailed(query.box_clone(), e1);
+            Err(e2)
+        }
     }
 }

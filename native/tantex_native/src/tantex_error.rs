@@ -20,6 +20,9 @@ pub enum TantexError {
     SearchExecutionFailed(Box<Query>, TantivyError),
     DocumentRetrievalFailed(TantivyError),
     InvalidDocumentJSON(String, DocParsingError),
+    SchemaBuilderNotFound,
+    SchemaNotFound,
+    IndexNotFound,
 }
 
 use TantexError::*;
@@ -62,6 +65,9 @@ impl TantexError {
                 (atoms::invalid_document_json(), message)
             }
             DocumentNotFound => (atoms::document_not_found(), "".to_string()),
+            SchemaBuilderNotFound => (atoms::schema_builder_not_found(), "".to_string()),
+            SchemaNotFound => (atoms::schema_not_found(), "".to_string()),
+            IndexNotFound => (atoms::index_not_found(), "".to_string()),
         }
     }
 }
