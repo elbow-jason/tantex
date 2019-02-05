@@ -9,6 +9,7 @@ extern crate tantivy;
 
 use rustler::resource::ResourceArc;
 use rustler::{Encoder, Env, NifResult, Term};
+use tantivy::schema::{Field, Type};
 
 mod atoms;
 mod query;
@@ -19,6 +20,7 @@ mod wrapper;
 
 use schema::field_config::FieldConfig;
 use schema::schema_index::SchemaIndex;
+use tantex_error::TantexError;
 use wrapper::Wrapper;
 
 fn on_load<'a>(env: Env<'a>, _load_info: Term<'a>) -> bool {
@@ -33,9 +35,9 @@ rustler_export_nifs! {
         ("add_field", 5, add_field),
         ("finalize_schema", 1, finalize_schema),
         ("open_index", 2, open_index),
-        ("write_documents", 4, write_documents),
+        ("write_documents", 3, write_documents),
         ("limit_search", 4, limit_search),
-        ("find_one_by_text", 3, find_one_by_text),
+        ("find_one_by_term", 3, find_one_by_term),
     ],
     Some(on_load)
 }
@@ -109,14 +111,55 @@ fn write_documents<'a>(env: Env<'a>, args: &[Term<'a>]) -> NifResult<Term<'a>> {
     }
 }
 
-fn find_one_by_text<'a>(env: Env<'a>, args: &[Term<'a>]) -> NifResult<Term<'a>> {
+fn find_one_by_term<'a>(env: Env<'a>, args: &[Term<'a>]) -> NifResult<Term<'a>> {
     let schema_index_wrapper: ResourceArc<Wrapper<SchemaIndex>> = args[0].decode()?;
-
-    let field_name: String = args[1].decode()?;
-    let text: String = args[2].decode()?;
     let schema_index = schema_index_wrapper.lock.read().unwrap();
-    match schema_index.fetch_one_by_text(&field_name, &text) {
+    let field_name: String = args[1].decode()?;
+    let field: Field = match schema_index.fetch_field(&field_name) {
+        Err(e) => return render_error(env, e),
+        Ok(field) => field,
+    };
+    let term: tantivy::Term = match schema_index.fetch_field_type(&field_name) {
+        Ok(Type::I64) => {
+            let val: i64 = match args[2].decode() {
+                Ok(v) => v,
+                Err(_) => return bad_data(env, Type::I64, field_name),
+            };
+            tantivy::Term::from_field_i64(field, val)
+        }
+        Ok(Type::U64) => {
+            let val: u64 = match args[2].decode() {
+                Ok(v) => v,
+                Err(_) => return bad_data(env, Type::U64, field_name),
+            };
+            tantivy::Term::from_field_u64(field, val)
+        }
+        Ok(Type::Str) => {
+            let val: String = match args[2].decode() {
+                Ok(v) => v,
+                Err(_) => return bad_data(env, Type::Str, field_name),
+            };
+            tantivy::Term::from_field_text(field, &val)
+        }
+        Ok(t) => {
+            let e = TantexError::TypeCannotBeSearched(t);
+            return render_error(env, e);
+        }
+        Err(e) => {
+            return render_error(env, e);
+        }
+    };
+    match schema_index.fetch_one_by_term(term) {
         Ok(json_doc) => Ok((atoms::ok(), json_doc).encode(env)),
-        Err(e) => Ok((atoms::error(), e.to_reason()).encode(env)),
+        Err(e) => return render_error(env, e),
     }
+}
+
+fn render_error<'a>(env: Env<'a>, e: TantexError) -> NifResult<Term<'a>> {
+    Ok((atoms::error(), e.to_reason()).encode(env))
+}
+
+fn bad_data<'a>(env: Env<'a>, t: Type, field_name: String) -> NifResult<Term<'a>> {
+    let e = TantexError::InvalidFieldData(t, field_name);
+    render_error(env, e)
 }

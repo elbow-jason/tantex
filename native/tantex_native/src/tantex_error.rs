@@ -2,6 +2,7 @@ use super::atoms;
 use rustler::types::atom::Atom;
 use tantivy::query::Query;
 use tantivy::schema::DocParsingError;
+use tantivy::schema::Type;
 use tantivy::TantivyError;
 
 pub enum TantexError {
@@ -23,6 +24,8 @@ pub enum TantexError {
     SchemaBuilderNotFound,
     SchemaNotFound,
     IndexNotFound,
+    TypeCannotBeSearched(Type),
+    InvalidFieldData(Type, String),
 }
 
 use TantexError::*;
@@ -68,6 +71,14 @@ impl TantexError {
             SchemaBuilderNotFound => (atoms::schema_builder_not_found(), "".to_string()),
             SchemaNotFound => (atoms::schema_not_found(), "".to_string()),
             IndexNotFound => (atoms::index_not_found(), "".to_string()),
+            TypeCannotBeSearched(t) => {
+                let message = format!("type: {:?}", t);
+                (atoms::invalid_document_json(), message)
+            }
+            InvalidFieldData(tantivy_type, field_name) => {
+                let message = format!("type: {:?} - field_name: {:?}", tantivy_type, field_name);
+                (atoms::invalid_field_data(), message)
+            }
         }
     }
 }

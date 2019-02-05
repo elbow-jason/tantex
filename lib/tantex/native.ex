@@ -1,5 +1,8 @@
 defmodule Tantex.Native do
+  @moduledoc false
   use Rustler, otp_app: :tantex, crate: "tantex_native"
+
+  @type error :: {:error, {atom, String.t()}}
 
   @doc """
 
@@ -24,15 +27,20 @@ defmodule Tantex.Native do
       {:error, {:name_cannot_be_blank, ""}}
       ```
   """
-  def build_schema(_field_tuples), do: err()
 
-  def schema_into_index(_schema_ref, _path), do: err()
+  def new_schema_index(), do: err()
 
-  def write_documents(_schema_ref, _index_ref, _encoded_docs, _heap_size), do: err()
+  def add_field(_index_ref, _field_name, _kind, _stored, _fast), do: err()
 
-  def limit_search(_schema_ref, _index_ref, _fields, _search_terms, _limit), do: err()
+  def finalize_schema(_index_ref), do: err()
 
-  def find_one_by_text(_schema_ref, _index_ref, _field_name, _text), do: err()
+  def open_index(_index_ref, _index_path), do: err()
+
+  def write_documents(_index_ref, _encoded_docs, _heap_size), do: err()
+
+  def limit_search(_index_ref, _fields, _search_terms, _limit), do: err()
+
+  def find_one_by_term(_index_ref, _field_name, _term), do: err()
 
   defp err(), do: :erlang.nif_error(:nif_not_loaded)
 end

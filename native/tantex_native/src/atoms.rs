@@ -26,6 +26,7 @@ rustler_atoms! {
     atom schema_builder_not_found;
     atom schema_not_found;
     atom index_not_found;
+    atom invalid_field_data;
     // atom __true__ = "true";
     // atom __false__ = "false";
 }

@@ -1,6 +1,6 @@
 use tantivy::query::{QueryParser, TermQuery};
-use tantivy::schema::{Field, IndexRecordOption, Schema, SchemaBuilder};
-use tantivy::{Index, IndexWriter};
+use tantivy::schema::{Field, IndexRecordOption, Schema, SchemaBuilder, Type};
+use tantivy::{Index, IndexWriter, Term};
 
 use super::super::tantex_error::TantexError;
 use super::super::utils::{fetch_field, fetch_schema_fields, parse_query, search_with_limit};
@@ -91,11 +91,32 @@ impl SchemaIndex {
         Ok(json_docs)
     }
 
-    pub fn fetch_one_by_text(&self, field_name: &str, text: &str) -> Result<String, TantexError> {
+    pub fn fetch_field(&self, field_name: &str) -> Result<Field, TantexError> {
+        let schema = self.fetch_schema()?;
+        fetch_field(&schema, &field_name)
+    }
+
+    // pub fn fetch_one_by_text(&self, field_name: &str, text: &str) -> Result<String, TantexError> {
+    //     let schema = self.fetch_schema()?;
+    //     let index = self.fetch_index()?;
+    //     let field = self.fetch_field(&field_name)?;
+    //     let term = tantivy::schema::Term::from_field_text(field, &text);
+    //     let searcher = index.searcher();
+    //     let term_query = TermQuery::new(term, IndexRecordOption::Basic);
+    //     let found = search_with_limit(index, &term_query, 1)?;
+    //     if let Some((_score, doc_address)) = found.first() {
+    //         match searcher.doc(*doc_address) {
+    //             Ok(doc) => Ok(schema.to_json(&doc)),
+    //             Err(e) => Err(TantexError::DocumentRetrievalFailed(e)),
+    //         }
+    //     } else {
+    //         Err(TantexError::DocumentNotFound)
+    //     }
+    // }
+
+    pub fn fetch_one_by_term(&self, term: Term) -> Result<String, TantexError> {
         let schema = self.fetch_schema()?;
         let index = self.fetch_index()?;
-        let field = fetch_field(&schema, &field_name)?;
-        let term = tantivy::schema::Term::from_field_text(field, &text);
         let searcher = index.searcher();
         let term_query = TermQuery::new(term, IndexRecordOption::Basic);
         let found = search_with_limit(index, &term_query, 1)?;
@@ -162,6 +183,13 @@ impl SchemaIndex {
             return Err(e2);
         };
         Ok(last)
+    }
+
+    pub fn fetch_field_type(&self, field_name: &str) -> Result<Type, TantexError> {
+        let schema = self.fetch_schema()?;
+        let field = fetch_field(&schema, &field_name)?;
+        let t = schema.get_field_entry(field).field_type().value_type();
+        Ok(t)
     }
 }
 

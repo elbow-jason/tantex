@@ -1,27 +1,23 @@
 defmodule Tantex do
   alias Tantex.{
-    Field,
-    Native,
     Index
   }
 
   def open(path, fields) when is_binary(path) and is_list(fields) do
-    native_fields = Enum.map(fields, &Field.to_native_tuple/1)
-
     with(
-      {:ok, schema} <- Native.build_schema(native_fields),
-      {:ok, index} <- Native.schema_into_index(schema, path)
+      {:ok, index} <- Index.new(fields),
+      :ok <- Index.finalize_schema(index),
+      {:ok, index} <- Index.open_index(index, path)
     ) do
-      {:ok, %Index{index_ref: index, schema_ref: schema, fields: fields}}
+      {:ok, index}
     else
       {:error, _} = err ->
         err
     end
   end
 
-  def encode_term(term) do
-    term
-    |> :erlang.term_to_binary()
-    |> :erlang.binary_to_list()
-  end
+  defdelegate find_many(index, fields, search_term, limit), to: Index
+  defdelegate find_one(index, field, search_term), to: Index
+  defdelegate insert_documents(index, documents, opts), to: Index
+  defdelegate insert_documents(index, documents), to: Index
 end
